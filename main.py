@@ -1,9 +1,11 @@
 import requests
 import os
 
+# GitHub Secrets(금고)에서 정보를 가져옵니다
 TARGET_URL = os.environ.get('TARGET_URL')
 SLACK_WEBHOOK_URL = os.environ.get('SLACK_WEBHOOK_URL')
-SOLD_OUT_TEXT = "상담원 연결"  # 실제 사이트에 표시되는 정확한 글자여야 합니다.
+# 사이트에 따라 "품절" 또는 "상담원 연결" 중 현재 표시되는 문구로 설정하세요
+SOLD_OUT_TEXT = "상담원 연결" 
 
 def check_stock():
     headers = {
@@ -11,21 +13,15 @@ def check_stock():
     }
     try:
         response = requests.get(TARGET_URL, headers=headers)
-        # 웹사이트의 전체 텍스트에서 '상담원 연길'이 포함되어 있는지 확인
-        page_content = response.text
         
-        if SOLD_OUT_TEXT in page_content:
-            # 상담원 연결 글자가 발견됨 -> 알림 안 보냄
-            print(f"[{response.status_code}] 아직 품절 상태입니다.")
+        # 전체 페이지 내용에서 SOLD_OUT_TEXT가 없으면 재고가 있는 것으로 판단
+        if SOLD_OUT_TEXT not in response.text:
+            payload = {"text": f"🚨 재고 발생!! 지금 바로 접속하세요!\n주소: {TARGET_URL}"}
+            res = requests.post(SLACK_WEBHOOK_URL, json=payload)
+            print(f"재고 발견! 슬랙 전송 결과: {res.status_code}")
         else:
-            # 품절 글자가 발견되지 않음 -> 재고 발생 가능성!
-            # 단, 사이트가 정상적으로 열렸을 때(200)만 알림 전송
-            if response.status_code == 200:
-                requests.post(SLACK_WEBHOOK_URL, json={"text": "🚨 재고 발생 가능성!! 지금 바로 확인하세요!"})
-                print("재고 발견 가능성! 슬랙 알림 전송 완료.")
-            else:
-                print(f"사이트 접속 불안정 (상태코드: {response.status_code})")
-                
+            print(f"[{response.status_code}] 아직 '{SOLD_OUT_TEXT}' 상태입니다.")
+            
     except Exception as e:
         print(f"에러 발생: {e}")
 
